@@ -72,6 +72,29 @@ export function useCreateMember() {
   });
 }
 
+export function useImportMembers() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (members: Omit<Member, 'id' | 'created_at' | 'updated_at'>[]) => {
+      const { data, error } = await supabase
+        .from("members")
+        .insert(members)
+        .select();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+      toast.success(`Importováno ${data.length} členů`);
+    },
+    onError: (error) => {
+      toast.error(`Chyba při importu: ${error.message}`);
+    },
+  });
+}
+
 export function useDeleteMember() {
   const queryClient = useQueryClient();
   

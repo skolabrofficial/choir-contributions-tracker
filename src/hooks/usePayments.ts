@@ -67,7 +67,6 @@ export function useUnpaidMembers() {
   return useQuery({
     queryKey: ["unpaid-members", currentYear, currentMonth],
     queryFn: async () => {
-      // Získáme všechny aktivní členy
       const { data: members, error: membersError } = await supabase
         .from("members")
         .select("*")
@@ -75,7 +74,6 @@ export function useUnpaidMembers() {
       
       if (membersError) throw membersError;
       
-      // Získáme všechny platby za aktuální měsíc
       const { data: payments, error: paymentsError } = await supabase
         .from("payments")
         .select("member_id")
@@ -86,7 +84,6 @@ export function useUnpaidMembers() {
       
       const paidMemberIds = new Set(payments?.map(p => p.member_id) || []);
       
-      // Vrátíme jen ty, co nemají zaplaceno a je školní měsíc
       const isSchoolMonth = SCHOOL_YEAR_MONTHS.includes(currentMonth);
       if (!isSchoolMonth) return [];
       
@@ -108,7 +105,6 @@ export function useCreatePayment() {
     }) => {
       const schoolYear = getCurrentSchoolYear();
       
-      // Získáme aktuální platby člena
       const { data: existingPayments, error: fetchError } = await supabase
         .from("payments")
         .select("month")
@@ -123,7 +119,6 @@ export function useCreatePayment() {
       let remainingAmount = amount;
       const paymentsToCreate: { member_id: string; school_year: string; month: number; amount: number }[] = [];
       
-      // Postupně zaplatíme nezaplacené měsíce
       for (const month of unpaidMonths) {
         if (remainingAmount >= MONTHLY_FEE) {
           paymentsToCreate.push({
@@ -138,7 +133,6 @@ export function useCreatePayment() {
         }
       }
       
-      // Pokud něco zbylo, jde to do přebytku
       if (remainingAmount > 0) {
         const { error: surplusError } = await supabase
           .from("surplus")
@@ -151,7 +145,6 @@ export function useCreatePayment() {
         if (surplusError) throw surplusError;
       }
       
-      // Vytvoříme platby
       if (paymentsToCreate.length > 0) {
         const { error: paymentsError } = await supabase
           .from("payments")
@@ -214,6 +207,29 @@ export function usePaySingleMonth() {
   });
 }
 
+export function useDeletePayment() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (paymentId: string) => {
+      const { error } = await supabase
+        .from("payments")
+        .delete()
+        .eq("id", paymentId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["unpaid-members"] });
+      toast.success("Platba byla zrušena");
+    },
+    onError: (error) => {
+      toast.error(`Chyba při rušení platby: ${error.message}`);
+    },
+  });
+}
+
 export function useAllPaymentsForExport() {
   const currentYear = getCurrentSchoolYear();
   
@@ -242,6 +258,32 @@ export function useAllPaymentsForExport() {
       if (surplusError) throw surplusError;
       
       return { members, payments, surplus, schoolYear: currentYear };
+    },
+  });
+}
+
+export function useImportPayments() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (payments: { member_id: string; school_year: string; month: number; amount: number }[]) => {
+      const { error } = await supabase
+        .from("payments")
+        .upsert(payments, { 
+          onConflict: 'member_id,school_year,month',
+          ignoreDuplicates: true 
+        });
+      
+      if (error) throw error;
+      return payments.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["unpaid-members"] });
+      toast.success(`Importováno ${count} plateb`);
+    },
+    onError: (error) => {
+      toast.error(`Chyba při importu: ${error.message}`);
     },
   });
 }

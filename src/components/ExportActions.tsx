@@ -27,7 +27,6 @@ export function ExportActions() {
       surplusByMember.set(s.member_id, (surplusByMember.get(s.member_id) || 0) + s.amount);
     });
 
-    // CSV header
     const headers = ["Jméno", "Příjmení", "Pohlaví", ...schoolYearMonths.map(m => getMonthName(m)), "Celkem", "Přebytek"];
     const rows = [headers.join(";")];
 
@@ -77,16 +76,17 @@ export function ExportActions() {
       <html lang="cs">
       <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Příspěvky ${data.schoolYear}</title>
         <style>
-          body { font-family: Arial, sans-serif; font-size: 11px; }
+          body { font-family: Arial, sans-serif; font-size: 11px; margin: 10px; }
           table { border-collapse: collapse; width: 100%; }
-          th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: center; }
-          th { background: #f5f5f5; }
+          th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: center; }
+          th { background: #f5f5f5; font-size: 10px; }
           .paid { color: green; font-weight: bold; }
           .unpaid { color: #ccc; }
-          h1 { font-size: 16px; margin-bottom: 10px; }
-          @media print { body { margin: 0; } }
+          h1 { font-size: 14px; margin-bottom: 10px; }
+          @media print { body { margin: 5mm; } }
         </style>
       </head>
       <body>
@@ -105,7 +105,7 @@ export function ExportActions() {
               const total = paidMonths.size * MONTHLY_FEE;
               return `
                 <tr>
-                  <td style="text-align: left;">${member.first_name} ${member.last_name}</td>
+                  <td style="text-align: left; white-space: nowrap;">${member.first_name} ${member.last_name}</td>
                   ${schoolYearMonths.map(m => 
                     `<td class="${paidMonths.has(m) ? 'paid' : 'unpaid'}">${paidMonths.has(m) ? '✓' : '–'}</td>`
                   ).join("")}
@@ -163,21 +163,22 @@ export function ExportActions() {
       <html lang="cs">
       <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Lístečky - ${data.schoolYear}</title>
         <style>
-          body { font-family: Arial, sans-serif; font-size: 10px; }
+          body { font-family: Arial, sans-serif; font-size: 10px; margin: 10px; }
           .slip { 
             border: 1px dashed #999; 
             padding: 8px; 
             margin: 4px;
-            width: 200px;
+            width: 180px;
             display: inline-block;
             vertical-align: top;
           }
           .paid { color: green; }
           .unpaid { color: #c00; }
           @media print { 
-            body { margin: 0; }
+            body { margin: 5mm; }
             .slip { page-break-inside: avoid; }
           }
         </style>
@@ -199,39 +200,41 @@ export function ExportActions() {
   return (
     <Card className="shadow-card animate-fade-in">
       <CardHeader className="pb-4">
-        <CardTitle className="font-display text-lg flex items-center gap-2">
+        <CardTitle className="font-display text-base sm:text-lg flex items-center gap-2">
           <FileSpreadsheet className="h-5 w-5 text-primary" />
           Export dat
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
           <Button
             variant="outline"
             onClick={generateCSV}
             disabled={isLoading}
-            className="h-12"
+            className="h-10 sm:h-12 text-xs sm:text-sm px-2 sm:px-4"
           >
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
-            Excel (CSV)
+            <FileSpreadsheet className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Excel</span>
+            <span className="sm:hidden">CSV</span>
           </Button>
           <Button
             variant="outline"
             onClick={generatePrintable}
             disabled={isLoading}
-            className="h-12"
+            className="h-10 sm:h-12 text-xs sm:text-sm px-2 sm:px-4"
           >
-            <FileText className="mr-2 h-4 w-4" />
-            Tabulka PDF
+            <FileText className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Tabulka</span>
+            <span className="sm:hidden">PDF</span>
           </Button>
           <Button
             variant="outline"
             onClick={generateSlips}
             disabled={isLoading}
-            className="h-12"
+            className="h-10 sm:h-12 text-xs sm:text-sm px-2 sm:px-4"
           >
-            <Printer className="mr-2 h-4 w-4" />
-            Lístečky
+            <Printer className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            Lístky
           </Button>
         </div>
       </CardContent>
