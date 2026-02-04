@@ -37,12 +37,8 @@ export function PaymentActions({ member }: PaymentActionsProps) {
   const isCurrentMonthPaid = paidMonths.has(currentMonth);
   const isCurrentMonthInSchoolYear = SCHOOL_YEAR_MONTHS.includes(currentMonth);
   
-  // Najdi první nezaplacený měsíc
-  const firstUnpaidMonth = unpaidMonths[0];
-  
-  // Má se zobrazit "Zaplatit tento měsíc" nebo "Zaplatit příští měsíc"?
   const showPayThisMonth = isCurrentMonthInSchoolYear && !isCurrentMonthPaid;
-  const nextMonthToPay = showPayThisMonth ? currentMonth : firstUnpaidMonth;
+  const nextMonthToPay = showPayThisMonth ? currentMonth : unpaidMonths[0];
 
   const handleQuickPay = async () => {
     if (nextMonthToPay) {
@@ -62,22 +58,22 @@ export function PaymentActions({ member }: PaymentActionsProps) {
     <>
       <Card className="shadow-card animate-fade-in">
         <CardHeader className="pb-4">
-          <CardTitle className="font-display text-lg flex items-center gap-2">
+          <CardTitle className="font-display text-base sm:text-lg flex items-center gap-2">
             <CreditCard className="h-5 w-5 text-primary" />
             Zaplatit příspěvek
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {allPaid ? (
-            <p className="text-center text-muted-foreground py-4">
+            <p className="text-center text-muted-foreground py-4 text-sm">
               Všechny měsíce jsou zaplaceny! 🎉
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
               <Button
                 onClick={handleQuickPay}
                 disabled={isPending || !nextMonthToPay}
-                className="h-14 text-base gradient-gold hover:opacity-90 transition-opacity"
+                className="h-12 sm:h-14 text-sm sm:text-base gradient-gold hover:opacity-90 transition-opacity"
               >
                 {showPayThisMonth ? (
                   <>Zaplatit {getMonthName(currentMonth).toLowerCase()}</>
@@ -92,9 +88,9 @@ export function PaymentActions({ member }: PaymentActionsProps) {
                 variant="outline"
                 onClick={() => setPayDialogOpen(true)}
                 disabled={isPending}
-                className="h-14 text-base"
+                className="h-12 sm:h-14 text-sm sm:text-base"
               >
-                <Banknote className="mr-2 h-5 w-5" />
+                <Banknote className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
                 Zaplatit částku
               </Button>
             </div>
@@ -102,16 +98,16 @@ export function PaymentActions({ member }: PaymentActionsProps) {
           
           {!allPaid && (
             <p className="text-xs text-center text-muted-foreground">
-              Zbývá zaplatit: {unpaidMonths.map(m => getMonthName(m).toLowerCase()).join(", ")}
+              Zbývá: {unpaidMonths.map(m => getMonthName(m).slice(0, 3)).join(", ")}
             </p>
           )}
         </CardContent>
       </Card>
 
       <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">
+            <DialogTitle className="font-display text-lg sm:text-xl">
               Platba {getMemberLabelGenitive(member.gender as 'male' | 'female')}{" "}
               {member.first_name}
             </DialogTitle>
@@ -119,14 +115,14 @@ export function PaymentActions({ member }: PaymentActionsProps) {
               Kolik {getMemberLabelGenitive(member.gender as 'male' | 'female')} dává?
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 pt-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-4">
             {[100, 200, 500, 1000].map((amount) => (
               <Button
                 key={amount}
                 variant="outline"
                 onClick={() => handlePayAmount(amount)}
                 disabled={isPending}
-                className="h-16 text-xl font-bold hover:bg-primary hover:text-primary-foreground transition-colors"
+                className="h-14 sm:h-16 text-lg sm:text-xl font-bold hover:bg-primary hover:text-primary-foreground transition-colors active:scale-95"
               >
                 {amount} Kč
               </Button>

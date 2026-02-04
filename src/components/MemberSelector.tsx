@@ -15,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Member, useMembers } from "@/hooks/useMembers";
+import { useMembers } from "@/hooks/useMembers";
 import { getMemberLabel } from "@/lib/genderUtils";
 import { AddMemberDialog } from "./AddMemberDialog";
 
@@ -39,24 +39,24 @@ export function MemberSelector({ selectedMemberId, onSelect }: MemberSelectorPro
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between h-12 text-base shadow-card bg-card hover:shadow-card-hover transition-shadow"
+            className="w-full justify-between h-11 sm:h-12 text-sm sm:text-base shadow-card bg-card hover:shadow-card-hover transition-shadow"
           >
             {selectedMember ? (
-              <span className="flex items-center gap-2">
-                <span className="font-medium">
+              <span className="flex items-center gap-1 sm:gap-2 truncate">
+                <span className="font-medium truncate">
                   {selectedMember.first_name} {selectedMember.last_name}
                 </span>
-                <span className="text-muted-foreground text-sm">
+                <span className="text-muted-foreground text-xs sm:text-sm hidden sm:inline">
                   ({getMemberLabel(selectedMember.gender as 'male' | 'female')})
                 </span>
               </span>
             ) : (
-              <span className="text-muted-foreground">Vyberte člena sboru...</span>
+              <span className="text-muted-foreground">Vyberte člena...</span>
             )}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[400px] p-0" align="start">
+        <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0" align="start">
           <Command>
             <CommandInput placeholder="Hledat člena..." />
             <CommandList>
@@ -95,7 +95,7 @@ export function MemberSelector({ selectedMemberId, onSelect }: MemberSelectorPro
       <Button
         variant="outline"
         size="icon"
-        className="h-12 w-12 shrink-0 shadow-card hover:shadow-card-hover transition-shadow"
+        className="h-11 w-11 sm:h-12 sm:w-12 shrink-0 shadow-card hover:shadow-card-hover transition-shadow"
         onClick={() => setAddDialogOpen(true)}
       >
         <UserPlus className="h-5 w-5" />
