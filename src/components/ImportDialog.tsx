@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload, FileText, Users, Loader2 } from "lucide-react";
+import { Upload, FileText, Users, Loader2, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +16,7 @@ import { useImportMembers, useMembers } from "@/hooks/useMembers";
 import { useImportPayments } from "@/hooks/usePayments";
 import { detectGender } from "@/lib/genderUtils";
 import { getCurrentSchoolYear, getSchoolYearMonthsOrdered } from "@/lib/schoolYearUtils";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export function ImportDialog() {
@@ -23,6 +24,9 @@ export function ImportDialog() {
   const [membersText, setMembersText] = useState("");
   const [paymentsText, setPaymentsText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState<string | null>(null);
+  const membersFileRef = useRef<HTMLInputElement>(null);
+  const paymentsFileRef = useRef<HTMLInputElement>(null);
   
   const importMembers = useImportMembers();
   const importPayments = useImportPayments();
@@ -33,7 +37,6 @@ export function ImportDialog() {
     const members: { first_name: string; last_name: string; gender: 'male' | 'female'; email: string | null; phone: string | null; is_active: boolean }[] = [];
     
     for (const line of lines) {
-      // Očekávaný formát: "Jméno Příjmení" nebo "Jméno Příjmení, email, telefon"
       const parts = line.split(',').map(p => p.trim());
       const nameParts = parts[0].split(/\s+/).filter(p => p);
       
@@ -73,7 +76,6 @@ export function ImportDialog() {
     };
     
     for (const line of lines) {
-      // Formát: "Jméno Příjmení: září, říjen, listopad" nebo "Jméno Příjmení - zaplaceno vše"
       const colonIndex = line.indexOf(':');
       const dashIndex = line.indexOf('-');
       const separator = colonIndex > 0 ? colonIndex : dashIndex;
@@ -82,7 +84,6 @@ export function ImportDialog() {
         const namePart = line.substring(0, separator).trim();
         const monthsPart = line.substring(separator + 1).trim().toLowerCase();
         
-        // Najdeme člena podle jména
         const nameParts = namePart.split(/\s+/).filter(p => p);
         const member = existingMembers.find(m => {
           const fullName = `${m.first_name} ${m.last_name}`.toLowerCase();
@@ -92,7 +93,6 @@ export function ImportDialog() {
         
         if (member) {
           if (monthsPart.includes('vše') || monthsPart.includes('celý rok') || monthsPart.includes('komplet')) {
-            // Zaplaceno vše
             for (const month of getSchoolYearMonthsOrdered()) {
               payments.push({
                 member_id: member.id,
@@ -102,7 +102,6 @@ export function ImportDialog() {
               });
             }
           } else {
-            // Parse jednotlivé měsíce
             for (const [name, num] of Object.entries(monthNames)) {
               if (monthsPart.includes(name)) {
                 payments.push({
@@ -119,6 +118,99 @@ export function ImportDialog() {
     }
     
     return payments;
+  };
+
+  const handleFileUpload = async (file: File, type: 'members' | 'payments') => {
+    setUploadingFile(type);
+    
+    try {
+      // For text files, read directly
+      if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.csv')) {
+        const text = await file.text();
+        if (type === 'members') {
+          setMembersText(text);
+        } else {
+          setPaymentsText(text);
+        }
+        toast.success("Soubor načten");
+        return;
+      }
+
+      // For PDF and other files, use the edge function
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', type);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-document`,
+        {
+          method: 'POST',
+          body: formData,
+          headers: session?.access_token 
+            ? { 'Authorization': `Bearer ${session.access_token}` }
+            : {},
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Nepodařilo se zpracovat soubor');
+      }
+
+      const result = await response.json();
+      
+      if (type === 'members' && result.data?.length > 0) {
+        // Convert AI result to member format
+        const members = result.data.map((m: { first_name: string; last_name: string }) => ({
+          first_name: m.first_name,
+          last_name: m.last_name,
+          gender: detectGender(m.first_name),
+          email: null,
+          phone: null,
+          is_active: true,
+        }));
+        
+        await importMembers.mutateAsync(members);
+        setOpen(false);
+      } else if (type === 'payments' && result.data?.length > 0) {
+        // Convert AI result to payments format
+        const schoolYear = getCurrentSchoolYear();
+        const payments: { member_id: string; school_year: string; month: number; amount: number }[] = [];
+        
+        for (const item of result.data) {
+          const member = existingMembers.find(m => {
+            const fullName = `${m.first_name} ${m.last_name}`.toLowerCase();
+            return fullName === item.name?.toLowerCase() || fullName.includes(item.name?.toLowerCase() || '');
+          });
+          
+          if (member && item.months?.length > 0) {
+            for (const month of item.months) {
+              payments.push({
+                member_id: member.id,
+                school_year: schoolYear,
+                month,
+                amount: 100,
+              });
+            }
+          }
+        }
+        
+        if (payments.length > 0) {
+          await importPayments.mutateAsync(payments);
+          setOpen(false);
+        } else {
+          toast.error("Nepodařilo se přiřadit platby ke členům");
+        }
+      } else {
+        toast.error("V souboru nebyla nalezena žádná data");
+      }
+    } catch (error) {
+      console.error('File upload error:', error);
+      toast.error("Chyba při zpracování souboru");
+    } finally {
+      setUploadingFile(null);
+    }
   };
 
   const handleImportMembers = async () => {
@@ -170,7 +262,7 @@ export function ImportDialog() {
         <DialogHeader>
           <DialogTitle className="font-display text-xl">Import dat</DialogTitle>
           <DialogDescription>
-            Vložte text ze souboru nebo PDF. Data budou automaticky rozpoznána.
+            Nahrajte soubor (PDF, TXT) nebo vložte text ručně.
           </DialogDescription>
         </DialogHeader>
         
@@ -187,13 +279,55 @@ export function ImportDialog() {
           </TabsList>
           
           <TabsContent value="members" className="space-y-4 mt-4">
+            {/* File upload */}
+            <div className="space-y-2">
+              <Label>Nahrát soubor</Label>
+              <input
+                ref={membersFileRef}
+                type="file"
+                accept=".pdf,.txt,.csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload(file, 'members');
+                }}
+              />
+              <Button
+                variant="outline"
+                className="w-full h-20 border-dashed flex flex-col gap-2"
+                onClick={() => membersFileRef.current?.click()}
+                disabled={uploadingFile === 'members'}
+              >
+                {uploadingFile === 'members' ? (
+                  <>
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="text-sm">Zpracovávám...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileUp className="h-6 w-6" />
+                    <span className="text-sm">Klikněte pro nahrání PDF nebo TXT</span>
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">nebo vložte text</span>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Seznam členů (jeden na řádek)</Label>
               <Textarea
-                placeholder="Marie Nováková&#10;Jan Novák, jan@email.cz&#10;Petra Svobodová, petra@email.cz, +420123456789"
+                placeholder="Marie Nováková&#10;Jan Novák, jan@email.cz&#10;Petra Svobodová"
                 value={membersText}
                 onChange={(e) => setMembersText(e.target.value)}
-                className="min-h-[200px] font-mono text-sm"
+                className="min-h-[150px] font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground">
                 Formát: Jméno Příjmení, email (volitelné), telefon (volitelné)
@@ -213,13 +347,55 @@ export function ImportDialog() {
           </TabsContent>
           
           <TabsContent value="payments" className="space-y-4 mt-4">
+            {/* File upload */}
+            <div className="space-y-2">
+              <Label>Nahrát soubor</Label>
+              <input
+                ref={paymentsFileRef}
+                type="file"
+                accept=".pdf,.txt,.csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload(file, 'payments');
+                }}
+              />
+              <Button
+                variant="outline"
+                className="w-full h-20 border-dashed flex flex-col gap-2"
+                onClick={() => paymentsFileRef.current?.click()}
+                disabled={uploadingFile === 'payments' || existingMembers.length === 0}
+              >
+                {uploadingFile === 'payments' ? (
+                  <>
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="text-sm">Zpracovávám...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileUp className="h-6 w-6" />
+                    <span className="text-sm">Klikněte pro nahrání PDF nebo TXT</span>
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">nebo vložte text</span>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Seznam plateb</Label>
               <Textarea
                 placeholder="Marie Nováková: září, říjen, listopad&#10;Jan Novák: zaplaceno vše&#10;Petra Svobodová: září, říjen"
                 value={paymentsText}
                 onChange={(e) => setPaymentsText(e.target.value)}
-                className="min-h-[200px] font-mono text-sm"
+                className="min-h-[150px] font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground">
                 Formát: Jméno Příjmení: měsíc1, měsíc2, ... nebo "zaplaceno vše"
