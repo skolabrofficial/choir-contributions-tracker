@@ -6,6 +6,7 @@ import { PaymentStatus } from "@/components/PaymentStatus";
 import { PaymentActions } from "@/components/PaymentActions";
 import { ExportActions } from "@/components/ExportActions";
 import { ImportDialog } from "@/components/ImportDialog";
+import { ChoirStatistics } from "@/components/ChoirStatistics";
 import { useMember } from "@/hooks/useMembers";
 import { getCurrentSchoolYear } from "@/lib/schoolYearUtils";
 
@@ -36,6 +37,11 @@ const Index = () => {
 
       {/* Main content */}
       <main className="container max-w-4xl py-4 sm:py-8 px-4 space-y-4 sm:space-y-6 flex-1">
+        {/* Statistics */}
+        <section>
+          <ChoirStatistics />
+        </section>
+
         {/* Member selector + Import */}
         <section className="space-y-2">
           <div className="flex items-center justify-between">
